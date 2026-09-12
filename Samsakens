@@ -273,7 +273,7 @@ local function setupModelVisuals(model, customDisplayName, customColor, hasNamet
 end
 
 local targetModels = {
-    ["1x1x1x1Zombie"] = { displayName = "1x1x1x1 Minion", color = Color3.fromRGB(0, 100, 0), nametag = true },
+    ["1x1x1x1Zombie"] = { displayName = "1x1x1x1 Zombie", color = Color3.fromRGB(0, 100, 0), nametag = true },
     ["GroundBulbModel"] = { displayName = "Ground Bulb", color = Color3.fromRGB(170, 0, 255), nametag = true },
     ["VineModel"] = { displayName = "Vine", color = Color3.fromRGB(170, 0, 255), nametag = true },
     ["PizzaDeliveryRig"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
@@ -285,9 +285,30 @@ local targetModels = {
     ["Groll2"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
     ["Mafia1"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
     ["Mafia2"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
+    ["Shadow"] = { displayName = "Shadow", color = Color3.fromRGB(0, 0, 0), nametag = true },
+    ["Trail"] = { displayName = "Trail", color = Color3.fromRGB(0, 0, 0), nametag = true },
+    -- Adições solicitadas para o Player ESP:
+    ["SubspaceTripmine"] = { displayName = "Subspace Tripmine", color = Color3.fromRGB(255, 128, 0), nametag = true },
+    ["BuildermanSentry"] = { displayName = "Builderman Sentry", color = Color3.fromRGB(255, 255, 0), nametag = true },
+    ["BuildermanDispenser"] = { displayName = "Builderman Dispenser", color = Color3.fromRGB(255, 255, 0), nametag = true },
     ["Harp"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
     ["Guitar"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true }
 }
+
+local function evaluateDynamicObject(obj)
+    local name = obj.Name
+    if name == "SubspaceTripmine" then
+        return { displayName = name, color = Color3.fromRGB(255, 128, 0), nametag = false }
+    -- Verifica Tripwire dinâmico: [NOME]Tripwire
+    elseif name:match("(.+)Tripwire$") then
+        return { displayName = name, color = Color3.fromRGB(255, 128, 0), nametag = true }
+    -- Verifica Spray dinâmico: [NOME]Spray
+    elseif name:match("(.+)Spray$") then
+        return { displayName = name, color = Color3.fromRGB(255, 105, 180), nametag = true }
+    end
+    return nil
+end
+
 
 local function evaluateObject(obj)
     if not playerEspEnabled or not obj or trackedEntities[obj] then return end
@@ -663,7 +684,7 @@ GeneratorTab:CreateToggle({
 -- =========================================================================
 
 EspTab:CreateToggle({
-   Name = "Player Esp/Minions/Azure Plants",
+   Name = "Player Esp/Minions/Azure Plants/Survivors Things",
    CurrentValue = false,
    Flag = "PlayerEspToggle",
    Callback = function(Value)
