@@ -690,7 +690,7 @@ GeneratorTab:CreateToggle({
 -- =========================================================================
 
 EspTab:CreateToggle({
-   Name = "Player Esp/Minions/Azure Plants",
+   Name = "Player Esp/Minions/Azure Plants And Survivors Things",
    CurrentValue = false,
    Flag = "PlayerEspToggle",
    Callback = function(Value)
