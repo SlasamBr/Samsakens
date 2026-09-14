@@ -287,8 +287,7 @@ local targetModels = {
     ["Mafia2"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
     ["Shadow"] = { displayName = "Shadow", color = Color3.fromRGB(0, 0, 0), nametag = true },
     ["Trail"] = { displayName = "Trail", color = Color3.fromRGB(0, 0, 0), nametag = true },
-    -- Adições solicitadas para o Player ESP:
-    ["SubspaceTripmine"] = { displayName = "Subspace Tripmine", color = Color3.fromRGB(255, 128, 0), nametag = true },
+    ["SubspaceTripmine"] = { displayName = "Subspace Tripmine", color = Color3.fromRGB(255, 128, 0), nametag = false },
     ["BuildermanSentry"] = { displayName = "Builderman Sentry", color = Color3.fromRGB(255, 255, 0), nametag = true },
     ["BuildermanDispenser"] = { displayName = "Builderman Dispenser", color = Color3.fromRGB(255, 255, 0), nametag = true },
     ["Harp"] = { displayName = "Pizza Delivery", color = Color3.fromRGB(255, 0, 0), nametag = true },
@@ -297,30 +296,27 @@ local targetModels = {
 
 local function evaluateDynamicObject(obj)
     local name = obj.Name
-    if name == "SubspaceTripmine" then
+    if name:match("(.+)Tripwire$") then
         return { displayName = name, color = Color3.fromRGB(255, 128, 0), nametag = false }
-    -- Verifica Tripwire dinâmico: [NOME]Tripwire
-    elseif name:match("(.+)Tripwire$") then
-        return { displayName = name, color = Color3.fromRGB(255, 128, 0), nametag = true }
-    -- Verifica Spray dinâmico: [NOME]Spray
     elseif name:match("(.+)Spray$") then
         return { displayName = name, color = Color3.fromRGB(255, 105, 180), nametag = true }
     end
     return nil
 end
 
-
 local function evaluateObject(obj)
     if not playerEspEnabled or not obj or trackedEntities[obj] then return end
 
-    if obj:IsA("Model") then
-        if targetModels[obj.Name] then
-            local config = targetModels[obj.Name]
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        local config = targetModels[obj.Name] or evaluateDynamicObject(obj)
+        if config then
             setupModelVisuals(obj, config.displayName, config.color, config.nametag)
-        elseif obj.Parent and obj.Parent:IsA("Folder") and isShadowsFolder(obj.Parent.Name) then
-            setupModelVisuals(obj, obj.Name, Color3.fromRGB(0, 0, 0), true)
-        elseif obj.Name == "Shadow" or obj.Name == "Trail" then
-            setupModelVisuals(obj, obj.Name, Color3.fromRGB(0, 0, 0), true)
+        elseif obj:IsA("Model") then
+            if obj.Parent and obj.Parent:IsA("Folder") and isShadowsFolder(obj.Parent.Name) then
+                setupModelVisuals(obj, obj.Name, Color3.fromRGB(0, 0, 0), true)
+            elseif obj.Name == "Shadow" or obj.Name == "Trail" then
+                setupModelVisuals(obj, obj.Name, Color3.fromRGB(0, 0, 0), true)
+            end
         end
     elseif obj:IsA("Folder") and isShadowsFolder(obj.Name) then
         for _, child in ipairs(obj:GetChildren()) do
@@ -335,6 +331,16 @@ local function scanWorkspacePlayers()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         evaluateObject(obj)
     end
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if mapFolder then
+        local ingameFolder = mapFolder:FindFirstChild("InGame") or mapFolder:FindFirstChild("Ingame")
+        if ingameFolder then
+            for _, obj in ipairs(ingameFolder:GetDescendants()) do
+                evaluateObject(obj)
+            end
+        end
+    end
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             setupPlayerVisuals(player)
@@ -554,7 +560,7 @@ end
 
 local function scanGenerators()
     clearAllGenerators()
-    for _, child in ipairs(Workspace:GetDescendants()) do
+     for _, child in ipairs(Workspace:GetDescendants()) do
         checkAndApplyGen(child)
     end
 end
@@ -590,7 +596,7 @@ local function DoGenPuzzle()
 		pcall(function()
 			local map = workspace:FindFirstChild("Map")
 			if not map then return end
-			local ingame = map:FindFirstChild("Ingame")
+			local ingame = map:FindFirstChild("Ingame") or map:FindFirstChild("InGame")
 			if not ingame then return end
 			local mapFolder = ingame:FindFirstChild("Map")
 			if not mapFolder then return end
@@ -684,7 +690,7 @@ GeneratorTab:CreateToggle({
 -- =========================================================================
 
 EspTab:CreateToggle({
-   Name = "Player Esp/Minions/Azure Plants/Survivors Things",
+   Name = "Player Esp/Minions/Azure Plants",
    CurrentValue = false,
    Flag = "PlayerEspToggle",
    Callback = function(Value)
@@ -693,7 +699,7 @@ EspTab:CreateToggle({
           scanWorkspacePlayers()
           task.spawn(function()
               while playerEspEnabled do
-                  task.wait(0.5) -- Otimizado de 0.2 para 0.5 para poupar CPU
+                  task.wait(0.5)
                   for _, player in ipairs(Players:GetPlayers()) do
                       if trackedEntities[player] then
                           updatePlayerVisuals(player, trackedEntities[player])
@@ -758,7 +764,7 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(0.2) -- Aumentado de 0.1 para 0.2 para reduzir consumo excessivo em background
+        task.wait(0.2)
         if staminaEnabled and staminaModule then
             pcall(function()
                 if staminaModule.Stamina <= 100 then
@@ -785,22 +791,35 @@ PlayerTab:CreateToggle({
 KillersTab:CreateSection("Noli")
 
 local voidRushEnabled = false
-local antiWallEnabled = false
 
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    
-    if antiWallEnabled and method == "FireServer" and self.ClassName == "RemoteEvent" then
-        local expectedRemoteName = LocalPlayer.Name .. "VoidRushCollision"
-        if args[1] == expectedRemoteName then
-            return
+local Players_Noli = game:GetService('Players')
+local LocalPlayer_Noli = Players_Noli.LocalPlayer
+local ReplicatedStorage_Noli = game:GetService('ReplicatedStorage')
+local Network = ReplicatedStorage_Noli:WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("Network")
+local NetworkModule = require(Network)
+local NoliConfig = require(ReplicatedStorage_Noli.Assets.Killers.Noli.Config)
+local VoidRushTracker
+
+local function TrackAttributes(Character)
+    if not Character then return end
+    Character:GetAttributeChangedSignal('VoidRushState'):Connect(function()
+        if (Character:GetAttribute('VoidRushState') == 'Dashing') then
+            VoidRushTracker = tick()
         end
+    end)
+end
+TrackAttributes(LocalPlayer_Noli.Character)
+LocalPlayer_Noli.CharacterAdded:Connect(TrackAttributes)
+
+local oldFireserver
+oldFireserver = hookfunction(NetworkModule.FireServerConnection, newcclosure(function(self, ...)
+    local args = {...}
+    if (args[1] == (LocalPlayer_Noli.Name .. 'VoidRushCollision') and VoidRushTracker) then
+        repeat task.wait() until (tick() - VoidRushTracker >= NoliConfig.VoidRushDashLength)
+        return oldFireserver(self, unpack(args))
     end
-    
-    return oldNamecall(self, ...)
-end)
+    return oldFireserver(self, unpack(args))
+end))
 
 RunService.RenderStepped:Connect(function()
     if not voidRushEnabled then return end
@@ -841,13 +860,7 @@ KillersTab:CreateToggle({
    CurrentValue = false,
    Flag = "VoidRushAntiCrashToggle",
    Callback = function(Value)
-      antiWallEnabled = Value
-      if not Value and LocalPlayer.Character then
-          local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-          if humanoid then
-              humanoid.AutoRotate = true
-          end
-      end
+      -- Ativado pelo hookfunction global integrado acima
    end,
 })
 
@@ -857,9 +870,6 @@ KillersTab:CreateToggle({
 
 SurvivorsTab:CreateSection("Veeronica")
 
--- =========================================================================
--- SK8 CONTROL SYSTEM (LOGIC)
--- =========================================================================
 local sk8ShiftlockEnabled = false
 local sk8Connection
 
@@ -1705,9 +1715,9 @@ local function initializeBackstabSystem()
         running = false
     end
 
-    local NetworkModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("Network"))
+    local NetworkModule_TT = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("Network"))
 
-    local oldFireServerConnection; oldFireServerConnection = hookfunction(NetworkModule.FireServerConnection, function(self, connectionName, eventType, ...)
+    local oldFireServerConnection; oldFireServerConnection = hookfunction(NetworkModule_TT.FireServerConnection, function(self, connectionName, eventType, ...)
         local args = {...}
         
         if connectionName == "UpdateCharacterPosition" then
@@ -2047,6 +2057,14 @@ FunTab:CreateToggle({
                       obj.Reflectance = 0
                   end
               end)
+
+              Lighting.GlobalShadows = false
+              Lighting.Brightness = 2
+              for _, child in ipairs(Lighting:GetChildren()) do
+                  if child:IsA("Atmosphere") or child:IsA("PostEffect") then
+                      pcall(function() child:Destroy() end)
+                  end
+              end
           end)
       end
    end,
